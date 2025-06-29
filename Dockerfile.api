@@ -1,0 +1,22 @@
+# Estágio 1: Build da aplicação com Maven
+FROM maven:3.9-eclipse-temurin-17 AS builder
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests
+
+# Estágio 2: Execução da aplicação
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+
+# Copia o artefato gerado no estágio anterior
+COPY --from=builder /app/target/*.jar app.jar
+
+EXPOSE 8080
+
+# Variáveis de ambiente
+ENV SPRING_DATASOURCE_URL=jdbc:mysql://mysql-dimdim:3306/db-dimdim
+ENV SPRING_DATASOURCE_USERNAME=user-dimdim
+ENV SPRING_DATASOURCE_PASSWORD=senha-dimdim
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
