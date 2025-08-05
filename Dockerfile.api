@@ -1,25 +1,36 @@
-# Estágio 1: Build da aplicação com Maven
+# Estágio 1: Build da aplicação com Maven e aproveitamento de cache
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /app
-COPY . .
+
+# Copie pom.xml e baixe dependências primeiro (cache eficiente)
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+# Agora copie o código (apenas se necessário para rebuild)
+COPY src ./src
+
+# Compile o projeto
 RUN mvn clean package -DskipTests
 
-# Estágio 2: Execução da aplicação
+# Estágio 2: Imagem enxuta para execução
 FROM eclipse-temurin:17-jre
+
+# Criar usuário não-root antes de copiar arquivos
+RUN addgroup --system appuser && adduser --system --ingroup appuser appuser
 WORKDIR /app
 
-# Copia o artefato gerado no estágio anterior
+# Copie só o jar final
 COPY --from=builder /app/target/*.jar app.jar
+RUN chown appuser:appuser app.jar
 
+USER appuser
+
+# Exponha porta da aplicação
 EXPOSE 8080
 
-# Variáveis de ambiente
-ENV SPRING_DATASOURCE_URL=jdbc:mysql://mysql-dimdim:3306/db-dimdim
-ENV SPRING_DATASOURCE_USERNAME=user-dimdim
-ENV SPRING_DATASOURCE_PASSWORD=senha-dimdim
-
-# Executar com usuário não privilegiado
-RUN adduser -h /home/appuser -s /bin/bash -D appuser
-USER appuser
+# Variáveis de ambiente (para sobrescrever facilmente)
+ENV SPRING_DATASOURCE_URL=jdbc:mysql://mysql-dimdim:3306/db-dimdim \
+    SPRING_DATASOURCE_USERNAME=user-dimdim \
+    SPRING_DATASOURCE_PASSWORD=senha-dimdim
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
